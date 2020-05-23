@@ -11,12 +11,14 @@ import (
 
 // Supported compression levels
 const (
-	LevelNoCompression      = -1
-	LevelDefaultCompression = 0
-	LevelBestSpeed          = 1
-	LevelBestCompression    = 2
-	LevelHuffmanOnly        = 3
+	LevelNoCompression CompressLevel = iota - 1
+	LevelDefaultCompression
+	LevelBestSpeed
+	LevelBestCompression
+	LevelHuffmanOnly
 )
+
+type CompressLevel int
 
 // Config ...
 type Config struct {
@@ -25,33 +27,42 @@ type Config struct {
 	Filter func(*fiber.Ctx) bool
 	// Level of compression
 	// Optional. Default value 0.
-	Level int
+	Level CompressLevel
+}
+
+func FixConfig(configs []Config) Config {
+	var cfg Config
+	if len(configs) > 0 {
+		cfg = configs[0]
+	}
+	return cfg
+}
+
+// Convert compress levels to correct int
+// https://github.com/valyala/fasthttp/blob/master/compress.go#L17
+func GetCompressHandlerLevel(level CompressLevel) int {
+	switch level {
+	case LevelNoCompression:
+		return 0
+	case LevelDefaultCompression:
+		return 6
+	case LevelBestSpeed:
+		return 1
+	case LevelBestCompression:
+		return 9
+	case LevelHuffmanOnly:
+		return -2
+	}
+	return 6
 }
 
 // New ...
-func New(config ...Config) func(*fiber.Ctx) {
+func New(configs ...Config) func(*fiber.Ctx) {
 	// Init config
-	var cfg Config
-	if len(config) > 0 {
-		cfg = config[0]
-	}
-	// Convert compress levels to correct int
-	// https://github.com/valyala/fasthttp/blob/master/compress.go#L17
-	switch cfg.Level {
-	case -1:
-		cfg.Level = 0
-	case 1:
-		cfg.Level = 1
-	case 2:
-		cfg.Level = 9
-	case 3:
-		cfg.Level = -2
-	default:
-		cfg.Level = 6
-	}
-	compress := fasthttp.CompressHandlerLevel(func(c *fasthttp.RequestCtx) {
-		return
-	}, cfg.Level)
+	cfg := FixConfig(configs)
+	doNothing := func(c *fasthttp.RequestCtx) { return }
+	level := GetCompressHandlerLevel(cfg.Level)
+	compress := fasthttp.CompressHandlerLevel(doNothing, level)
 	// Middleware function
 	return func(c *fiber.Ctx) {
 		// Filter request to skip middleware
