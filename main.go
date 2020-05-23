@@ -22,9 +22,9 @@ type CompressLevel int
 
 // Config ...
 type Config struct {
-	// Filter defines a function to skip middleware.
+	// Exclude defines a function to skip middleware.
 	// Optional. Default: nil
-	Filter func(*fiber.Ctx) bool
+	Exclude func(*fiber.Ctx) bool
 	// Level of compression
 	// Optional. Default value 0.
 	Level CompressLevel
@@ -65,12 +65,10 @@ func New(configs ...Config) func(*fiber.Ctx) {
 	compress := fasthttp.CompressHandlerLevel(doNothing, level)
 	// Middleware function
 	return func(c *fiber.Ctx) {
-		// Filter request to skip middleware
-		if cfg.Filter != nil && cfg.Filter(c) {
-			c.Next()
-			return
-		}
 		c.Next()
-		compress(c.Fasthttp)
+		// Run only the request is not exclude
+		if cfg.Exclude == nil || !cfg.Exclude(c) {
+			compress(c.Fasthttp)
+		}
 	}
 }
